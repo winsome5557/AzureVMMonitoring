@@ -1,0 +1,78 @@
+<#
+    .DESCRIPTION
+        Runbook to monitor running virtual machines at night time and report
+        
+    .NOTES
+        AUTHOR: Sarfraz Malik 
+        LASTEDIT: August 3, 2016
+#>
+ 
+workflow Monitor_Running_Virtual_Machines
+{
+	 
+    #The name of the Automation Credential Asset this runbook will use to authenticate to Azure.
+    $CredentialAssetName = 'DefaultAzureCredential'
+
+    #Get the credential with the above name from the Automation Asset store
+    $Cred = Get-AutomationPSCredential -Name $CredentialAssetName
+    if(!$Cred) {
+        Throw "Could not find an Automation Credential Asset named '${CredentialAssetName}'. Make sure you have created one in this Automation Account."
+    }
+
+	#Connect to your Azure Account
+	$Account = Add-AzureAccount -Credential $Cred
+    #$Account = Login-AzureRmAccount -Credential $Cred -ServicePrincipal -Tenant "1fbd65bf-5def-4eea-a692-a089c255346b"
+    if(!$Account) {
+        Throw "Could not authenticate to Azure using the credential asset '${CredentialAssetName}'. Make sure the user name and password are correct."
+    }
+	
+	# Select Azure Subscription
+	Select-AzureSubscription -SubscriptionName "IM Solutions Development"
+
+	$classicVms = Get-AzureVM | select Name,Status, ServiceName, ResourceGroupName
+	
+	#$RGs = GET-Azure
+	$ss=""
+	 #   $VMs = Get-AzureRmVM -ResourceGroupName $RG.ResourceGroupName
+	    foreach($VM in $classicVms)
+	    {
+	      #  $VMDetail = Get-AzureVM -ServiceName $VM.ServiceName -Name $VM.Name 
+	      #  foreach ($VMStatus in $VMDetail.PowerStates)
+	      #  { 
+	          if($VM.Status.CompareTo("StoppedDeallocated") -ne 0)
+	          {
+	                write-output $VM.Name  $VM.Status
+					if ($ss -ne "")
+					{
+						$ss=$ss+", "
+					}
+					$ss=$ss+$VM.Name  
+	           }
+	        #}
+	    1   
+	    }
+
+ 	$Emailcreds = Get-AutomationPSCredential -Name "SendGridEmailCredentials"
+	$SmtpSer = "smtp.sendgrid.net" 
+	$EmailFrom = "Admin@SolutionDevelopmentAzure.com"
+	#[string[]] $EmailTo = "sarfrazmalik@tfl.gov.uk","sarfraz.malik@gmail.com"
+	[string[]] $EmailTo = "Robert.Cheruvathur@TfL.gov.uk","SubirDas@tfl.gov.uk","Alan.Folling@tube.tfl.gov.uk","Choo-Hiang.Goh@Tfl.gov.uk","William.Hershey@tube.tfl.gov.uk","SarfrazMalik@tfl.gov.uk","MarkPage@tfl.gov.uk","PaulShovlar@tfl.gov.uk","Shiva.Rajan@tube.tfl.gov.uk","DamonSiusta@tfl.gov.uk", "DarrenStanton@tfl.gov.uk"		
+		
+		
+	$Subject = "Azure Automation Alert: Virtual Machines running at night"
+ 
+   # Send Email alert			
+   if ($ss -ne "") {
+      $mail_body= "Attention! One or more VMs are in a state other than Stopped (Deallocated). The running VM names are:" +$ss
+	  $mail_body =  $mail_body + ".This is an automated email from "
+	  $mail_body =  $mail_body + "[ Solutions Development Azure Automation]. Please do not reply."   
+	  #$mail_body = "Test email"
+	  write-output "Some servers are still running. Should be off"
+	   
+     # Send-MailMessage  -SmtpServer $SmtpSer  -Port 587 -Credential $Emailcreds -From "IMSolutionsAzureAutomationService@sendgrid.com" -To "sarfrazmalik@tfl.gov.uk" -Subject "Alarm: Azure Automation – Running VM!" -body $mail_body
+	  Send-MailMessage -smtpServer $SmtpSer -Credential $Emailcreds -Usessl -Port 587 -from $EmailFrom -to $EmailTo -subject $Subject -Body $mail_body		 
+   }		
+		
+		
+
+}
